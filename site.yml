@@ -1,0 +1,181 @@
+---
+
+- name: run the playbook tasks on the localhost
+  hosts: 127.0.0.1
+  connection: local
+  become: yes
+  tasks:
+
+
+  - name: Install add-apt-repostory
+    become: yes
+    apt: name=software-properties-common state=latest
+
+  - name: Add Oracle Java Repository
+    become: yes
+    apt_repository: repo='ppa:webupd8team/java'
+
+  - name: Accept Java 8 License
+    become: yes
+    debconf: name='oracle-java8-installer' question='shared/accepted-oracle-license-v1-1' value='true' vtype='select'
+
+  - name: Install Oracle Java 8
+    become: yes
+    apt: name={{item}} state=latest
+    with_items:
+      - oracle-java8-installer
+      - ca-certificates
+      - oracle-java8-set-default
+
+
+  - name: print out the hostname of target
+    command: hostname
+
+  - name: add group "tomcat"
+    group: name=tomcat7
+
+  - name: add user "tomcat"
+    user: 
+      name: tomcat7 
+      groups: tomcat7
+      system: yes
+      shell: /usr/sbin/nologin
+#      become: true
+
+#    - name: copy Tomcat
+#      copy: src=./apache-tomcat-8.5.16.tar.gz dest=/opt/apache-tomcat-8.5.16.tar.gz
+
+  - name: Download Tomcat 7.0.92
+    get_url:
+      url: https://archive.apache.org/dist/tomcat/tomcat-7/v7.0.92/bin/apache-tomcat-7.0.92.tar.gz
+      dest: /opt/
+
+  - name: ensure tomcat directory exists
+    file:
+      path: /var/lib/tomcat7
+      state: directory
+
+  - name: Download & Extract Tomcat archive
+    unarchive:
+      src: /opt/apache-tomcat-7.0.92.tar.gz 
+      dest: /var/lib/tomcat7
+      extra_opts: [--strip-components=1]
+      #command: tar zxvf /opt/apache-tomcat-7.0.92.tar.gz -C /opt/tomcat creates=/opt/
+
+
+  - name: Change ownership of Tomcat installation
+    file: path=/var/lib/tomcat7 owner=tomcat7 group=tomcat7 state=directory recurse=yes
+
+
+# create the logs dir
+  - file:
+      path: /var/log/tomcat7
+      owner: tomcat7
+      group: adm
+      state: directory
+#      mode: 2750
+
+  - name: change permissions1
+    file: dest=/var/lib/tomcat7/ owner=tomcat7 group=tomcat7  recurse=yes
+
+  - name: change permissions2
+    file: dest=/var/lib/tomcat7/conf/  mode=g=r recurse=yes
+
+  - name: change permissions3
+    file: dest=/var/lib/tomcat7/temp  mode=g=w
+
+  - name: change permissions4
+    file: dest=/var/lib/tomcat7/work  mode=g=w
+
+  - name: Remove pld logs dir
+    file:
+      path: "{{ item }}"
+      state: absent
+    with_items:
+      - /var/lib/tomcat7/logs
+      - /var/lib/tomcat7/webapps/docs
+      - /var/lib/tomcat7/webapps/examples
+      - /var/lib/tomcat7/webapps/host-manager
+      - /var/lib/tomcat7/webapps/manager
+      - /var/lib/tomcat7/conf/server.xml
+
+  - name: Create symbolic link for logs
+    file:
+      src: "/var/log/tomcat7"
+      dest: "/var/lib/tomcat7/logs"
+      state: link
+      owner: tomcat7
+      group: tomcat7
+
+  - name: copy server.xml
+    copy:
+      src: files/server.xml
+      dest: /var/lib/tomcat7/conf/server.xml
+      owner: tomcat7
+      group: tomcat7
+      mode: 0640
+
+  - name: copy tomcat logrotate file
+    copy:
+      src: files/tomcat_logrotate
+      dest: /etc/logrotate.d/tomcat7
+      owner: root
+      group: root
+      mode: 0644
+
+#  - name: copy tomcat init file
+#    copy:
+#      src: files/init_tomcat
+#      dest: /etc/init.d/tomcat7
+#      owner: root
+#      group: root
+#      mode: 0755
+
+  - name: ensure tomcat directory exists
+    file:
+      path: /usr/share/tomcat7
+      state: directory
+
+
+  - name: copy tomcat lib
+    command: mv /var/lib/tomcat7/lib /usr/share/tomcat7/
+
+  - name: copy tomcat bin
+    command: mv  /var/lib/tomcat7/bin /usr/share/tomcat7/
+
+  - name: copy tomcat systemctl
+    copy:
+      src: files/tomcat7.service
+      dest: /etc/systemd/system/tomcat7.service
+      owner: root
+      group: root
+
+
+  - name: copy tomcat catalina.sh file
+    copy:
+      src: files/catalina.sh
+      dest: /usr/share/tomcat7/bin/catalina.sh
+      owner: tomcat7
+      group: tomcat7
+      mode: 0755
+
+
+  - name: just force systemd to reread configs
+    systemd:
+      daemon_reload: yes
+
+
+  - name: enable the tomcat7
+    systemd: name=tomcat7 enabled=yes
+    tags:
+      - enabletomcat
+
+  - name: start tomcat7
+    systemd: name=tomcat7 state=started
+    tags:
+      - starttomcat
+
+  - name: wait for tomcat to start
+    wait_for: port=8080
+
+
