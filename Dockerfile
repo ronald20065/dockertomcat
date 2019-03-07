@@ -51,5 +51,6 @@ ENV PATH /ansible/bin:$PATH
 
 WORKDIR /ansible/playbooks
 #ENTRYPOINT ["ansible-playbook"]
+#2
 VOLUME ["/sys/fs/cgroup", "/tmp", "/run"]
 CMD ["/lib/systemd/systemd"]
