@@ -50,7 +50,6 @@ ENV PATH /ansible/bin:$PATH
 #ENV ANSIBLE_LIBRARY /ansible/library
 
 WORKDIR /ansible/playbooks
-
 #ENTRYPOINT ["ansible-playbook"]
 VOLUME ["/sys/fs/cgroup", "/tmp", "/run"]
 CMD ["/lib/systemd/systemd"]
